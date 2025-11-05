@@ -19,7 +19,7 @@ public class DataSourceConfig {
         SecretsConfiguration.Datasource db = secretsProperties.getDatasource();
 
         HikariDataSource ds = new HikariDataSource();
-        ds.setJdbcUrl(serviceConfiguration.getDbUrl());
+        ds.setJdbcUrl(serviceConfiguration.getUserDb().getUrl() + serviceConfiguration.getUserDb().getName());
         ds.setUsername(db.getUsername());
         ds.setPassword(db.getPassword());
         ds.setDriverClassName(db.getDriverClassName());

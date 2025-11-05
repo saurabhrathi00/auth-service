@@ -1,5 +1,6 @@
 package com.auth_service.auth_service.models.dao;
 
+import de.huxhorn.sulky.ulid.ULID;
 import jakarta.persistence.*;
 
 
@@ -16,8 +17,7 @@ import java.util.List;
 public class UserEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private String id;
 
     private String username;
     private String email;
@@ -30,4 +30,12 @@ public class UserEntity {
             inverseJoinColumns = @JoinColumn(name = "role_name")
     )
     private List<RoleEntity> roles;
+
+
+    @PrePersist
+    public void generateUlid() {
+        if (this.id == null) {
+            this.id = new ULID().nextULID();  // ✅ sulky ULID generator
+        }
+    }
 }

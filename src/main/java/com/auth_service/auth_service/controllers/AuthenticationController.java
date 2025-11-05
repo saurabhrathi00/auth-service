@@ -21,12 +21,6 @@ public class AuthenticationController {
 
     private final AuthenticationService authService;
 
-    @PostMapping("/signup")
-    public ResponseEntity<AuthenticationResponse> signup(@Valid @RequestBody SignupRequest request) {
-        AuthenticationResponse response = authService.signUp(request);
-        return ResponseEntity.ok(response);
-    }
-
     @PostMapping("/signin")
     public ResponseEntity<AuthenticationResponse> signin(@Valid @RequestBody SigninRequest request) {
         AuthenticationResponse response = authService.signIn(request);

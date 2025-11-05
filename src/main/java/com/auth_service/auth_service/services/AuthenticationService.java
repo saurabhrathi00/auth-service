@@ -7,10 +7,11 @@ import com.auth_service.auth_service.exceptions.ConflictException;
 import com.auth_service.auth_service.exceptions.RoleNotFoundException;
 import com.auth_service.auth_service.models.dao.RoleEntity;
 import com.auth_service.auth_service.models.dao.UserEntity;
+import com.auth_service.auth_service.models.request.ServiceTokenRequest;
 import com.auth_service.auth_service.models.request.SigninRequest;
-import com.auth_service.auth_service.models.request.SignupRequest;
 import com.auth_service.auth_service.models.response.AuthenticationResponse;
 import com.auth_service.auth_service.models.response.RefreshTokenResponse;
+import com.auth_service.auth_service.models.response.ServiceTokenResponse;
 import com.auth_service.auth_service.repository.RoleRepository;
 import com.auth_service.auth_service.repository.UserRepository;
 import com.auth_service.auth_service.security.token.TokenPrincipal;
@@ -37,44 +38,9 @@ public class AuthenticationService {
 
     private final SecretsConfiguration secretsConfiguration;
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenProvider tokenProvider;
 
-    @Transactional
-    public AuthenticationResponse signUp(SignupRequest request) {
-        String username = request.getUsername().trim();
-        String email = request.getEmail().trim().toLowerCase();
-
-        if (userRepository.existsByUsername(username)) {
-            throw new ConflictException("Username already taken");
-        }
-        if (userRepository.existsByEmail(email)) {
-            throw new ConflictException("Email already registered");
-        }
-
-        // Fetch default role from DB (ROLE_USER)
-        RoleEntity defaultRole = roleRepository.findById(RoleEnum.ROLE_USER.name())
-                .orElseThrow(() -> new RoleNotFoundException(RoleEnum.ROLE_USER.name()));
-
-        // Build UserEntity with Lombok builder
-        UserEntity user = UserEntity.builder()
-                .username(username)
-                .email(email)
-                .password(passwordEncoder.encode(request.getPassword()))
-                .roles(List.of(defaultRole)) // default ROLE_USER
-                .build();
-
-        userRepository.save(user);
-        log.info("User registered: {}", username);
-
-        // Sign-up: token optional
-        return AuthenticationResponse.builder()
-                .tokenType(tokenProvider.tokenType())
-                .expiresIn(0L)
-                .message("User registered successfully")
-                .build();
-    }
 
     @Transactional
     public AuthenticationResponse signIn(SigninRequest request) {
@@ -167,6 +133,29 @@ public class AuthenticationService {
                 .accessToken(newAccessToken)
                 .expiresIn(secretsConfiguration.getJwt().getAccessTokenExpiration().getSeconds())
                 .message("Access token refreshed successfully")
+                .build();
+    }
+
+    public ServiceTokenResponse generateServiceToken(ServiceTokenRequest request) {
+
+        // --- 1. Validate service credentials ---
+        SecretsConfiguration.ServiceCredentials creds =
+                secretsConfiguration.getServices().get(request.getClientId());
+
+        if (creds == null || !creds.getPassword().equals(request.getClientSecret())) {
+            throw new AuthFailedException("Invalid clientId or clientSecret");
+        }
+
+        Duration accessTokenExpiry = secretsConfiguration.getJwt().getServiceTokenExpiration();
+        // Prepare JWT claims
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("audience", request.getAudience());
+        claims.put("scopes", "internal_service_access");
+        String accessToken = tokenProvider.issue(request.getClientId(), claims, accessTokenExpiry);
+
+       return ServiceTokenResponse.builder()
+                .token(accessToken)
+                .expiresIn(accessTokenExpiry.toSeconds())
                 .build();
     }
 

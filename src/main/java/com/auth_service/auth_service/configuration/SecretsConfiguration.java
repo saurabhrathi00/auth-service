@@ -3,18 +3,18 @@ package com.auth_service.auth_service.configuration;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.PropertySource;
 
 import java.time.Duration;
+import java.util.Map;
 
 @Data
 @Configuration
-@PropertySource("file:/Users/saurabhrathi/Documents/Projects/consult-me/secrets/secrets.properties")
 @ConfigurationProperties(prefix = "secrets")
 public class SecretsConfiguration {
 
     private Jwt jwt;
-    private Datasource datasource;   // rename db → datasource to match secrets.datasource.*
+    private Datasource datasource;
+    private Map<String, ServiceCredentials> services;
 
     @Data
     public static class Jwt {
@@ -22,14 +22,7 @@ public class SecretsConfiguration {
         private String type;
         private Duration accessTokenExpiration;   // maps from access-token.expiration
         private Duration refreshTokenExpiration;  // maps from refresh-token.expiration
-
-//        public Duration getAccessTokenExpiration() {
-//            return Duration.parse("PT" + accessTokenExpiration.toUpperCase());
-//        }
-//
-//        public Duration getRefreshTokenExpiration() {
-//            return Duration.parse("PT" + refreshTokenExpiration.toUpperCase());
-//        }
+        private Duration serviceTokenExpiration;  // maps from service-token.expiration
     }
 
     @Data
@@ -37,6 +30,12 @@ public class SecretsConfiguration {
         private String username;
         private String password;
         private String driverClassName; // matches driver-class-name
+    }
+
+    @Data
+    public static class ServiceCredentials {
+        private String id;
+        private String password;
     }
 }
 
