@@ -1,6 +1,7 @@
 package com.auth_service.auth_service.services;
 
 import com.auth_service.auth_service.configuration.SecretsConfiguration;
+import com.auth_service.auth_service.configuration.ServiceConfiguration;
 import com.auth_service.auth_service.enums.RoleEnum;
 import com.auth_service.auth_service.exceptions.AuthFailedException;
 import com.auth_service.auth_service.exceptions.ConflictException;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 import java.time.Duration;
+import java.util.Optional;
 
 @Service
 @Transactional(readOnly = true)
@@ -37,6 +39,7 @@ public class AuthenticationService {
     private static final Logger log = LoggerFactory.getLogger(AuthenticationService.class);
 
     private final SecretsConfiguration secretsConfiguration;
+    private final ServiceConfiguration serviceConfiguration;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenProvider tokenProvider;
@@ -138,7 +141,7 @@ public class AuthenticationService {
 
     public ServiceTokenResponse generateServiceToken(ServiceTokenRequest request) {
 
-        // --- 1. Validate service credentials ---
+        // 1. Authenticate client
         SecretsConfiguration.ServiceCredentials creds =
                 secretsConfiguration.getServices().get(request.getClientId());
 
@@ -146,16 +149,48 @@ public class AuthenticationService {
             throw new AuthFailedException("Invalid clientId or clientSecret");
         }
 
-        Duration accessTokenExpiry = secretsConfiguration.getJwt().getServiceTokenExpiration();
-        // Prepare JWT claims
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("audience", request.getAudience());
-        claims.put("scopes", "internal_service_access");
-        String accessToken = tokenProvider.issue(request.getClientId(), claims, accessTokenExpiry);
+        // 2. Load policy
+        ServiceConfiguration.Auth auth = serviceConfiguration.getAuth();
+        if (auth == null || auth.getPolicy() == null || auth.getPolicy().getServices() == null) {
+            throw new AuthFailedException("Auth policy not configured");
+        }
 
-       return ServiceTokenResponse.builder()
-                .token(accessToken)
-                .expiresIn(accessTokenExpiry.toSeconds())
+        // 3. Validate audience
+        ServiceConfiguration.PolicyRule rule =
+                auth.getPolicy().getServices().get(request.getAudience());
+
+        if (rule == null || rule.getScopes() == null) {
+            throw new AuthFailedException(
+                    "Service not allowed to access audience: " + request.getAudience()
+            );
+        }
+
+        // 4. Validate scopes
+        List<String> requestedScopes = request.getScopes();
+        if (requestedScopes == null || requestedScopes.isEmpty()
+                || !rule.getScopes().containsAll(requestedScopes)) {
+            throw new AuthFailedException(
+                    "Requested scopes not allowed. Requested=" + requestedScopes +
+                            ", Allowed=" + rule.getScopes()
+            );
+        }
+
+        // 5. Issue token
+        Duration expiry = secretsConfiguration.getJwt().getServiceTokenExpiration();
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("aud", request.getAudience());
+        claims.put("scope", requestedScopes);
+
+        String token = tokenProvider.issue(
+                request.getClientId(),
+                claims,
+                expiry
+        );
+
+        return ServiceTokenResponse.builder()
+                .token(token)
+                .expiresIn(expiry.toSeconds())
                 .build();
     }
 

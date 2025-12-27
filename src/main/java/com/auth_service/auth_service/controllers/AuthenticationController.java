@@ -2,7 +2,6 @@ package com.auth_service.auth_service.controllers;
 
 import com.auth_service.auth_service.models.request.RefreshTokenRequest;
 import com.auth_service.auth_service.models.request.SigninRequest;
-import com.auth_service.auth_service.models.request.SignupRequest;
 import com.auth_service.auth_service.models.response.AuthenticationResponse;
 import com.auth_service.auth_service.models.response.RefreshTokenResponse;
 import com.auth_service.auth_service.services.AuthenticationService;
